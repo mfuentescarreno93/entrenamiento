@@ -21,7 +21,7 @@
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 body{background:var(--bg); color:var(--tx); font-family:var(--sf); font-size:15px; line-height:1.45;
-  padding-bottom:calc(150px + env(safe-area-inset-bottom));}
+  padding-bottom:calc(200px + env(safe-area-inset-bottom));}
 h1,h2,h3,h4{margin:0 0 8px; line-height:1.25}
 button{font-family:inherit; font-size:15px; cursor:pointer; border:none; border-radius:10px}
 input,select,textarea{font-family:inherit; font-size:15px; background:var(--bg3); color:var(--tx);
@@ -104,20 +104,21 @@ hr{border:none; border-top:1px solid var(--line); margin:12px 0}
 .tcfg input{width:62px; padding:5px; text-align:center; font-size:13px}
 
 /* ---------- timer dock ---------- */
-#dock{position:fixed; left:0; right:0; bottom:0; z-index:60; background:rgba(11,13,16,.97);
+#dock{position:fixed; left:0; right:0; bottom:0; z-index:60; background:rgba(11,13,16,.98);
   backdrop-filter:blur(12px); border-top:1px solid var(--line);
-  padding:9px 12px calc(9px + env(safe-area-inset-bottom))}
-#dock .in{max-width:820px; margin:0 auto; display:flex; align-items:center; gap:10px}
-#tstate{font-size:10.5px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:var(--tx3)}
-#tclock{font-size:38px; font-weight:800; letter-spacing:-1px; font-variant-numeric:tabular-nums; line-height:1}
-#tname{font-size:12px; color:var(--tx2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+#dock .in{max-width:820px; margin:0 auto; display:flex; align-items:center; gap:12px}
+#tstate{font-size:12px; font-weight:800; letter-spacing:1.4px; text-transform:uppercase; color:var(--tx3)}
+#tclock{font-size:60px; font-weight:800; letter-spacing:-1.5px; font-variant-numeric:tabular-nums; line-height:1.05}
+#tname{font-size:13.5px; color:var(--tx2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px}
 #dock.work #tclock{color:var(--am)} #dock.work #tstate{color:var(--am)}
 #dock.rest #tclock{color:var(--bl)} #dock.rest #tstate{color:var(--bl)}
 #dock.idle #tclock{color:var(--tx3)}
-.tbtn{width:46px;height:46px;border-radius:12px;background:var(--bg3);border:1px solid var(--line);
-  color:var(--tx); font-size:17px; display:grid; place-items:center; flex:0 0 auto}
-.tbtn.main{background:var(--am); color:#1a1206; border-color:var(--am)}
-#tbar{height:4px; background:var(--bg3); border-radius:9px; overflow:hidden; margin-top:7px}
+.tbtn{width:60px;height:60px;border-radius:15px;background:var(--bg3);border:1px solid var(--line);
+  color:var(--tx); font-size:22px; display:grid; place-items:center; flex:0 0 auto}
+.tbtn.main{background:var(--am); color:#1a1206; border-color:var(--am); width:66px; height:66px; font-size:26px}
+.tbtn.skip{font-size:15px; font-weight:800}
+#tbar{height:6px; background:var(--bg3); border-radius:9px; overflow:hidden; margin-top:10px}
 #tfill{height:100%; width:0; background:var(--am); transition:width .25s linear}
 #dock.rest #tfill{background:var(--bl)}
 
@@ -158,13 +159,13 @@ summary{cursor:pointer; font-weight:700; font-size:13.5px}
 
 <div id="dock" class="idle">
   <div class="in">
-    <button class="tbtn" id="tminus">−15</button>
+    <button class="tbtn skip" id="tminus" title="Reiniciar este tramo">⏮</button>
     <div style="min-width:0;flex:1">
       <div id="tstate">Listo</div>
       <div id="tclock">00:00</div>
       <div id="tname">Selecciona una serie para iniciar</div>
     </div>
-    <button class="tbtn" id="tplus">+15</button>
+    <button class="tbtn skip" id="tplus" title="Terminar este tramo ya">⏭</button>
     <button class="tbtn main" id="tmain">▶</button>
     <button class="tbtn" id="tstop">■</button>
   </div>
@@ -227,7 +228,8 @@ const BASE = {"version":1,"meses":[{"key":"ENE2026","nombre":"ENE 2026","cardio"
 /* ------------------------------ estado ------------------------------ */
 const KEY = 'ARMAS_APP_V1';
 const DEF = {
-  ajustes:{sonido:true, vibrar:true, autoRest:true, autoNext:true, wake:true, unidad:'lb'},
+  ajustes:{sonido:true, vibrar:true, autoRest:true, autoNext:true, wake:true, unidad:'lb',
+           sndInterval:'Beep corto', snd3s:'Beep corto', sndHalf:'Silbato de árbitro doble'},
   timers:{}, sesiones:[], medidas:BASE.medidas.slice(), custom:{}, customD:{}, activa:null
 };
 let S;
@@ -324,21 +326,23 @@ function tRender(){
 }
 function tStart(seg, fase, nombre, ctx){
   T.fase=fase; T.total=seg; T.resto=seg; T.ctx=ctx||T.ctx;
+  T.halfAt = Math.floor(seg/2); T.halfDone = false;
   $('#tname').textContent = nombre || '';
   T.fin = Date.now()+seg*1000; T.run=true; wake(true);
-  clearInterval(T.iv); T.iv=setInterval(tick,200); tRender(); beep(fase==='work'?880:520,120);
+  clearInterval(T.iv); T.iv=setInterval(tick,200); tRender(); reproducirTono(S.ajustes.sndInterval);
 }
 function tick(){
   if(!T.run) return;
   const r = Math.round((T.fin-Date.now())/1000);
   if(r!==T.resto){
     T.resto=r; tRender();
-    if(r===3||r===2||r===1) beep(700,90,.18);
+    if(r===3||r===2||r===1) reproducirTono(S.ajustes.snd3s);
+    if(!T.halfDone && T.halfAt>0 && r<=T.halfAt && r>0){ T.halfDone=true; reproducirTono(S.ajustes.sndHalf); }
     if(r<=0) tFin();
   }
 }
 function tFin(){
-  clearInterval(T.iv); T.run=false; beep(1046,420,.32); vib([220,90,220]);
+  clearInterval(T.iv); T.run=false; reproducirTono(S.ajustes.sndInterval); vib([220,90,220]);
   const c=T.ctx;
   if(T.fase==='work' && c && S.ajustes.autoRest){
     const e=c.ex, t=tim(e);
@@ -357,8 +361,18 @@ $('#tmain').onclick=()=>{
 };
 $('#tstop').onclick=()=>{ clearInterval(T.iv); T.run=false; T.fase='idle'; T.resto=0; T.total=0;
   $('#tname').textContent='Detenido'; tRender(); wake(false); };
-$('#tplus').onclick=()=>{ T.resto+=15; T.total+=15; T.fin+=15000; tRender(); };
-$('#tminus').onclick=()=>{ T.resto=Math.max(0,T.resto-15); T.fin-=15000; tRender(); };
+$('#tplus').onclick=()=>{
+  // "Avanzar": termina de inmediato el tramo en curso, como si hubiera llegado a 0.
+  if(T.fase==='idle') return;
+  clearInterval(T.iv); T.resto=0; T.total=T.total||1; tRender(); tFin();
+};
+$('#tminus').onclick=()=>{
+  // "Retroceder": reinicia el tramo actual desde el principio (mismo tiempo total).
+  if(T.fase==='idle' || !T.total) return;
+  T.halfAt = Math.floor(T.total/2); T.halfDone=false;
+  T.resto=T.total; T.fin=Date.now()+T.total*1000; T.run=true;
+  clearInterval(T.iv); T.iv=setInterval(tick,200); tRender();
+};
 tRender();
 
 /* ========================= SESIÓN ACTIVA =========================== */
@@ -366,9 +380,11 @@ function nuevaSesion(mesKey, diaKey){
   const m=mesPorKey(mesKey), d=m.dias.find(x=>x.key===diaKey);
   const s={ id:'S'+Date.now(), fecha:hoy(), t0:Date.now(), mesKey, mesNombre:m.nombre,
             diaKey, diaLabel:d.label, grupo:d.grupo, sets:[], notas:'', cerrada:false };
-  d.bloques.forEach(b=>b.ex.forEach(e=>{
-    for(let i=1;i<=b.series;i++) s.sets.push({exId:e.id, n:e.n, serie:i, peso:'', reps:'', ok:false});
-  }));
+  d.bloques.forEach(b=>{
+    for(let i=1;i<=b.series;i++){
+      b.ex.forEach(e=>{ s.sets.push({exId:e.id, n:e.n, serie:i, peso:'', reps:'', ok:false}); });
+    }
+  });
   S.activa=s; save(); return s;
 }
 const setDe = (s,exId,serie) => s.sets.find(x=>x.exId===exId && x.serie===serie);
@@ -773,6 +789,10 @@ function vEditorRutina(a){
     const box=el('div',{class:'blk','data-t':b.tipo});
     box.append(el('div',{class:'blkhead'}, el('span',{style:'color:var(--am)'},'BLOQUE '+(bi+1)),
       el('span',{class:'sp'}),
+      el('button',{class:'btn sm',disabled:bi===0?'':null,onclick:()=>{
+        if(bi>0){ const t=d.bloques[bi-1]; d.bloques[bi-1]=b; d.bloques[bi]=t; save(); render(); }}},'▲'),
+      el('button',{class:'btn sm',disabled:bi===d.bloques.length-1?'':null,onclick:()=>{
+        if(bi<d.bloques.length-1){ const t=d.bloques[bi+1]; d.bloques[bi+1]=b; d.bloques[bi]=t; save(); render(); }}},'▼'),
       el('button',{class:'btn rd sm',onclick:()=>{ if(confirm('¿Eliminar bloque?')){ d.bloques.splice(bi,1); save(); render(); }}},'×')));
     const body=el('div',{style:'padding:11px'});
     body.append(el('div',{class:'grid2'},
@@ -787,6 +807,10 @@ function vEditorRutina(a){
     b.ex.forEach((e,ei)=>{
       body.append(el('hr'));
       body.append(el('div',{class:'row'}, el('div',{class:'sp tiny'},'Ejercicio '+(ei+1)),
+        el('button',{class:'btn sm',disabled:ei===0?'':null,onclick:()=>{
+          if(ei>0){ const t=b.ex[ei-1]; b.ex[ei-1]=e; b.ex[ei]=t; save(); render(); }}},'▲'),
+        el('button',{class:'btn sm',disabled:ei===b.ex.length-1?'':null,onclick:()=>{
+          if(ei<b.ex.length-1){ const t=b.ex[ei+1]; b.ex[ei+1]=e; b.ex[ei]=t; save(); render(); }}},'▼'),
         el('button',{class:'btn rd sm',onclick:()=>{ b.ex.splice(ei,1); save(); render(); }},'×')));
       body.append(el('input',{value:e.n, placeholder:'Nombre del ejercicio',
         oninput:ev=>{e.n=ev.target.value; save();}}));
@@ -838,6 +862,7 @@ function mesVacio(){
 /* ----------------------------- AJUSTES ----------------------------- */
 function vAjustes(a){
   vCuentaNube(a);
+  vSonidos(a);
   const sw=(k,l,d)=>el('div',{class:'card row'},
     el('div',{class:'sp'}, el('div',{style:'font-weight:600'},l), el('div',{class:'tiny'},d)),
     el('button',{class:'btn sm '+(S.ajustes[k]?'ok':''), onclick:e=>{
@@ -857,9 +882,11 @@ function vAjustes(a){
     el('div',{class:'row wrap2'},
       el('button',{class:'btn am sm',onclick:exportar},'⬇ Exportar respaldo'),
       el('button',{class:'btn sm',onclick:()=>$('#imp').click()},'⬆ Importar respaldo'),
-      el('button',{class:'btn sm',onclick:exportarCSV},'⬇ Sesiones en CSV'),
       el('button',{class:'btn sm',onclick:exportarFotos},'⬇ Fotos')),
     el('input',{type:'file',accept:'.json',id:'imp',style:'display:none',onchange:importar})));
+
+  a.append(vExportarCSV());
+
 
   a.append(el('h3',{style:'margin-top:16px'},'Diagnóstico'));
   a.append(el('div',{class:'card tiny'},
@@ -900,16 +927,53 @@ function importar(ev){
     save(); toast('Respaldo restaurado'); render(); }catch(e){ alert('Archivo no válido.'); } };
   fr.readAsText(f);
 }
-function exportarCSV(){
+const NOMBRE_MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function mesesDisponibles(){
+  const set = new Set();
+  S.sesiones.forEach(s=>{ if(s.fecha) set.add(s.fecha.slice(0,7)); });
+  S.medidas.forEach(m=>{ if(m.fecha) set.add(m.fecha.slice(0,7)); });
+  return [...set].sort().reverse().map(ym=>({
+    value: ym, label: NOMBRE_MES[+ym.slice(5,7)-1]+' '+ym.slice(0,4) }));
+}
+let _scopeCSV = 'TODO';
+function vExportarCSV(){
+  const meses = mesesDisponibles();
+  const sel = el('select',{onchange:e=>{_scopeCSV=e.target.value;}},
+    [el('option',{value:'TODO', selected:_scopeCSV==='TODO'?'':null},'Todo el historial')].concat(
+      meses.map(m=>el('option',{value:m.value, selected:_scopeCSV===m.value?'':null}, m.label))));
+  return el('div',{class:'card'},
+    el('h3',{},'Descargar en CSV (Excel)'),
+    el('label',{class:'f'},'Periodo'), sel,
+    el('div',{class:'row wrap2',style:'margin-top:10px'},
+      el('button',{class:'btn sm',onclick:()=>exportarCSV(_scopeCSV)},'⬇ Sesiones'),
+      el('button',{class:'btn sm',onclick:()=>exportarMedidasCSV(_scopeCSV)},'⬇ Medidas')),
+    el('div',{class:'tiny',style:'margin-top:8px'},
+      meses.length? 'Elige un mes o descarga todo el historial acumulado.' :
+        'Todavía no hay suficientes registros con fecha para filtrar por mes; se descargará todo.'));
+}
+function exportarCSV(scope){
+  const ses = (scope&&scope!=='TODO') ? S.sesiones.filter(s=>s.fecha && s.fecha.slice(0,7)===scope) : S.sesiones;
+  if(!ses.length){ alert('No hay sesiones en ese periodo.'); return; }
   const l=['fecha,mes,dia,ejercicio,serie,peso_lb,reps'];
-  S.sesiones.forEach(s=>s.sets.forEach(x=>l.push([s.fecha,s.mesNombre,s.diaLabel,
+  ses.forEach(s=>s.sets.forEach(x=>l.push([s.fecha,s.mesNombre,s.diaLabel,
     '"'+(x.n||'').replace(/"/g,'')+'"',x.serie,x.peso,x.reps].join(','))));
-  bajar('armas_sesiones_'+hoy()+'.csv', l.join('\n'), 'text/csv');
+  const etiqueta = (!scope||scope==='TODO') ? 'historial-completo' : scope;
+  bajar('armas_sesiones_'+etiqueta+'.csv', l.join('\n'), 'text/csv');
+}
+function exportarMedidasCSV(scope){
+  const med = (scope&&scope!=='TODO') ? S.medidas.filter(m=>m.fecha && m.fecha.slice(0,7)===scope) : S.medidas;
+  if(!med.length){ alert('No hay medidas en ese periodo.'); return; }
+  const l=['fecha,peso_kg,brazo_cm,pecho_cm,cintura_cm,cadera_cm,muslo_cm,pantorrilla_cm,nota'];
+  med.forEach(m=>l.push([m.fecha, m.peso??'', m.brazo??'', m.pecho??'', m.cintura??'', m.cadera??'',
+    m.muslo??'', m.pantorrilla??'', '"'+(m.nota||'').replace(/"/g,'')+'"'].join(',')));
+  const etiqueta = (!scope||scope==='TODO') ? 'historial-completo' : scope;
+  bajar('armas_medidas_'+etiqueta+'.csv', l.join('\n'), 'text/csv');
 }
 async function exportarFotos(){
   const fs=await idbAll(); if(!fs.length){ alert('No hay fotos guardadas.'); return; }
   bajar('armas_fotos_'+hoy()+'.json', JSON.stringify(fs));
 }
+
 
 /* =====================================================================
    V2 · IMPORTACIÓN DESDE PDF + EDITOR DE DIETAS
@@ -1491,12 +1555,12 @@ function crudoPanel(raw){
    igual que la versión sin nube: todo local, sin intentar conectarse.
    ===================================================================== */
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAYxhxB5ucoAZeUH4VYqP8oz5fu3hX5AgY",
-  authDomain:        "entrenamiento-2d36b.firebaseapp.com",
-  projectId:         "entrenamiento-2d36b",
-  storageBucket:     "entrenamiento-2d36b.firebasestorage.app",
-  messagingSenderId: "1041183546608",
-  appId:             "1:1041183546608:web:c4097b01668256b6e6f635"
+  apiKey:            "PEGA_AQUI_TU_apiKey",
+  authDomain:        "PEGA_AQUI_TU_PROYECTO.firebaseapp.com",
+  projectId:         "PEGA_AQUI_TU_PROYECTO",
+  storageBucket:     "PEGA_AQUI_TU_PROYECTO.appspot.com",
+  messagingSenderId: "PEGA_AQUI_TU_ID",
+  appId:             "PEGA_AQUI_TU_APP_ID"
 };
 const CLOUD_HABILITADA = !/^PEGA_AQUI/.test(FIREBASE_CONFIG.apiKey);
 
@@ -1700,6 +1764,124 @@ function traducirErrorAuth(e){
     'auth/weak-password':'La contraseña necesita al menos 6 caracteres.',
     'auth/network-request-failed':'Sin conexión a internet en este momento.'
   })[m] || ('No se pudo completar: '+(e.message||m));
+}
+
+/* =====================================================================
+   V4 · SONIDOS PERSONALIZABLES (inspirado en Tabata: Interval Beep,
+   Three Second Beep, Halfway Beep). Todos los tonos se generan en vivo
+   con Web Audio, no son archivos de audio, así que funcionan sin
+   conexión y no son copia de ningún sonido con derechos reservados.
+   ===================================================================== */
+
+let _masterBus=null;
+function _bus(){
+  if(_masterBus && _masterBus.ctx===AC) return _masterBus;
+  const comp = AC.createDynamicsCompressor();
+  comp.threshold.value=-8; comp.knee.value=6; comp.ratio.value=14;
+  comp.attack.value=.002; comp.release.value=.18;
+  const boost = AC.createGain(); boost.gain.value=2.6;   // mucho más fuerte, sin distorsionar
+  boost.connect(comp); comp.connect(AC.destination);
+  _masterBus = {ctx:AC, in:boost}; return _masterBus;
+}
+function _nota(o){
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended') AC.resume();
+    const t0 = AC.currentTime + (o.delay||0)/1000;
+    const g = AC.createGain(); g.connect(_bus().in);
+    const vol = o.vol!=null? o.vol : .28;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0+.008);
+    g.gain.exponentialRampToValueAtTime(.0001, t0+(o.dur||150)/1000);
+    if(o.noise){
+      const n=AC.sampleRate*(o.dur/1000+.05)|0;
+      const buf=AC.createBuffer(1,n,AC.sampleRate); const d=buf.getChannelData(0);
+      for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+      const src=AC.createBufferSource(); src.buffer=buf;
+      const f=AC.createBiquadFilter(); f.type='bandpass';
+      f.frequency.value=o.filterFreq||2500; f.Q.value=o.filterQ||8;
+      src.connect(f); f.connect(g);
+      src.start(t0); src.stop(t0+(o.dur||150)/1000+.05);
+    } else {
+      const osc=AC.createOscillator(); osc.type=o.wave||'sine';
+      osc.frequency.setValueAtTime(o.freq||880, t0);
+      if(o.sweepTo) osc.frequency.exponentialRampToValueAtTime(Math.max(30,o.sweepTo), t0+(o.dur||150)/1000);
+      osc.connect(g); osc.start(t0); osc.stop(t0+(o.dur||150)/1000+.03);
+      if(o.freq2){
+        const osc2=AC.createOscillator(); osc2.type=o.wave||'sine'; osc2.frequency.value=o.freq2;
+        const g2=AC.createGain(); g2.gain.value=(o.vol2!=null?o.vol2:vol*.6);
+        osc2.connect(g2); g2.connect(_bus().in); osc2.start(t0); osc2.stop(t0+(o.dur||150)/1000+.03);
+      }
+    }
+  }catch(e){}
+}
+function reproducirTono(nombre){
+  if(!S.ajustes.sonido) return;
+  const spec = TONOS[nombre]; if(!spec || spec.off) return;
+  (spec.notas||[spec]).forEach(_nota);
+}
+
+/* Catálogo — nombres en español, cada uno con una receta sintetizada */
+const TONOS = {
+'Apagado': {off:true},
+'Bocina de aire': {wave:'sawtooth', freq:150, sweepTo:120, dur:480, vol:.32},
+'Gong de campana': {notas:[{wave:'sine',freq:300,dur:850,vol:.24},{wave:'sine',freq:600,dur:750,vol:.14,delay:15}]},
+'Gong de boxeo': {notas:[{wave:'square',freq:90,dur:90,vol:.3},{wave:'sine',freq:220,dur:650,vol:.18,delay:20}]},
+'Silenciador': {wave:'square', freq:1000, dur:280, vol:.22},
+'Campanita': {wave:'sine', freq:1200, dur:380, vol:.26},
+'Gong chino': {notas:[{wave:'sine',freq:250,dur:1150,vol:.22},{wave:'sine',freq:262,dur:1150,vol:.16}]},
+'Clic': {noise:true, filterFreq:4500, filterQ:2, dur:18, vol:.3},
+'Clong': {wave:'triangle', freq:220, sweepTo:150, dur:130, vol:.3},
+'Beep digital': {wave:'square', freq:1046, dur:90, vol:.24},
+'Campanita digital': {notas:[{wave:'sine',freq:1500,dur:90,vol:.24},{wave:'sine',freq:1500,dur:90,vol:.24,delay:110}]},
+'Brillo digital': {wave:'sine', freq:420, sweepTo:1200, dur:210, vol:.26},
+'Destello digital': {notas:[{wave:'sine',freq:1800,dur:45,vol:.22},{wave:'sine',freq:2200,dur:45,vol:.22,delay:55},{wave:'sine',freq:2600,dur:55,vol:.22,delay:110}]},
+'Tin digital': {wave:'sine', freq:2000, dur:70, vol:.24},
+'Zumbador electromecánico': {wave:'square', freq:110, dur:420, vol:.3},
+'Zumbador electrónico': {wave:'sawtooth', freq:220, dur:300, vol:.26},
+'Glockenspiel': {notas:[{wave:'sine',freq:1046,dur:320,vol:.22},{wave:'sine',freq:2093,dur:260,vol:.12,delay:10}]},
+'Silbato de gimnasio': {noise:true, filterFreq:2600, filterQ:9, dur:260, vol:.3},
+'Sirena de hockey': {wave:'sawtooth', freq:95, dur:600, vol:.3},
+'Cascabel': {notas:[{wave:'sine',freq:2000,dur:55,vol:.2},{wave:'sine',freq:2400,dur:55,vol:.2,delay:60},{wave:'sine',freq:1900,dur:60,vol:.2,delay:120}]},
+'Rayo láser': {wave:'triangle', freq:1800, sweepTo:180, dur:160, vol:.28},
+'Bláster de iones láser': {wave:'sawtooth', freq:1200, sweepTo:90, dur:260, vol:.26},
+'Sable láser': {wave:'triangle', freq:300, sweepTo:850, dur:300, vol:.24},
+'Ding metálico': {notas:[{wave:'sine',freq:1800,dur:260,vol:.22},{wave:'sine',freq:1830,dur:260,vol:.18}]},
+'Interruptor': {wave:'square', freq:600, dur:35, vol:.24},
+'Silbato de árbitro': {noise:true, filterFreq:3000, filterQ:10, dur:260, vol:.32},
+'Silbato de árbitro doble': {notas:[{noise:true,filterFreq:3000,filterQ:10,dur:150,vol:.32},{noise:true,filterFreq:3000,filterQ:10,dur:150,vol:.32,delay:220}]},
+'Silbato de árbitro largo': {noise:true, filterFreq:3000, filterQ:10, dur:520, vol:.32},
+'Beep corto': {wave:'sine', freq:880, dur:110, vol:.26},
+'Bocina deportiva': {wave:'sawtooth', freq:200, dur:420, vol:.3},
+'Silbato deportivo': {noise:true, filterFreq:2800, filterQ:9, dur:300, vol:.3},
+'Switch': {wave:'square', freq:500, dur:28, vol:.22},
+'Tingsha': {notas:[{wave:'sine',freq:3000,dur:650,vol:.16},{wave:'sine',freq:6000,dur:550,vol:.08,delay:5}]},
+'Tock': {wave:'triangle', freq:150, dur:55, vol:.3}
+};
+const ORDEN_TONOS = ['Apagado','Bocina de aire','Gong de campana','Gong de boxeo','Silenciador','Campanita',
+ 'Gong chino','Clic','Clong','Beep digital','Campanita digital','Brillo digital','Destello digital','Tin digital',
+ 'Zumbador electromecánico','Zumbador electrónico','Glockenspiel','Silbato de gimnasio','Sirena de hockey',
+ 'Cascabel','Rayo láser','Bláster de iones láser','Sable láser','Ding metálico','Interruptor','Silbato de árbitro',
+ 'Silbato de árbitro doble','Silbato de árbitro largo','Beep corto','Bocina deportiva','Silbato deportivo',
+ 'Switch','Tingsha','Tock'];
+
+function vSonidos(a){
+  const box = el('div',{class:'card'}, el('h3',{},'Sonidos'),
+    el('div',{class:'tiny',style:'margin-bottom:8px'},
+      'Tonos generados por la app (no son grabaciones), para que funcionen sin conexión.'));
+  const fila = (clave, etiqueta, ayuda) => {
+    const sel = el('select',{onchange:e=>{S.ajustes[clave]=e.target.value; save();}},
+      ORDEN_TONOS.map(n=>el('option',{value:n, selected:S.ajustes[clave]===n?'':null}, n)));
+    box.append(el('div',{style:'margin-top:10px'},
+      el('label',{class:'f'}, etiqueta),
+      el('div',{class:'row'}, el('div',{class:'sp'}, sel),
+        el('button',{class:'btn sm',onclick:()=>reproducirTono(sel.value)},'▶')),
+      el('div',{class:'tiny'}, ayuda)));
+  };
+  fila('sndInterval','Sonido de intervalo','Suena al empezar cada tramo de trabajo o descanso.');
+  fila('snd3s','Aviso a 3 segundos','Suena cada segundo durante los últimos 3 segundos del tramo.');
+  fila('sndHalf','Aviso a la mitad','Suena una vez, al llegar a la mitad del tiempo del tramo.');
+  a.append(box);
 }
 
 /* ------------------------------ arranque --------------------------- */
