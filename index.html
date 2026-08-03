@@ -1007,7 +1007,9 @@ const acent = s => (s||'').replace(RX_ACC, m=>ACC[m]||m);
 /* --------------------------- lectura de PDF -------------------------- */
 async function leerPDF(file, onProg){
   if(!window.pdfjsLib) throw new Error('El motor de PDF no se cargó.');
-  window.pdfjsLib.PDFWorkerUtil.isWorkerDisabled = true;   // todo en el hilo principal
+  // Nota: no se toca PDFWorkerUtil (no está expuesto en la API pública de
+  // pdfjsLib). El worker embebido (globalThis.pdfjsWorker) se detecta solo
+  // y pdf.js corre en modo "fake worker" (hilo principal) automáticamente.
   const buf = await file.arrayBuffer();
   const doc = await window.pdfjsLib.getDocument({
     data:new Uint8Array(buf), isEvalSupported:false, disableFontFace:true,
@@ -1086,7 +1088,7 @@ function numsDeCargas(arr, unidadPorDefecto){
 }
 
 const RX_PRESC = /(\b\d+\s*R\b|\b\d+\s*rep\w*|\brest\s*pause\b|\bclou?ster\b|\btempo\b|\bnegativas?\b|\bpositivas?\b|\b\d+\s*:\s*\d+\b|\bsuper\s*serie\b|\b\d+\s*\/\s*\d+\b|\bmáximo\b|\belige\b|\b\d+\s*min\b|\bpesadas?\b|\blentas?\b|\brápidas?\b|\bal gusto\b)/i;
-const RX_BASURA = /^(coach|rutina|mes|objetivo|ej\.?\s*cardiovascular|nombre|entrenadora|ig\.|armas|mente sobre cuerpo|nutricion|nutrición deportiva|recomposici|\d{1,2}\/\d{1,2}\/\d{2,4}|grupo muscular\s*$)/i;
+const RX_BASURA = /^(coach|rutina|mes|objetivo|ej\.?\s*cardiovascular|nombre|entrenadora|ig\.|armas|mente sobre cuerpo|nutricion|nutrición deportiva|recomposici|\d{1,2}\/\d{1,2}\/\d{2,4}|grupo muscular\s*$|nota\s*:|los descansos entre|sensaci[oò]n[;,]?\s*los descansos)/i;
 
 /* --------------------------- parser de RUTINA ------------------------ */
 function parseRutina(fs, opt){
