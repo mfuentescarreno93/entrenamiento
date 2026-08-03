@@ -463,7 +463,14 @@ function vEntrenar(a){
 }
 
 function vSesion(a){
-  const s=S.activa, m=mesPorKey(s.mesKey), d=m.dias.find(x=>x.key===s.diaKey);
+  const s=S.activa, m=mesPorKey(s.mesKey), d=m && m.dias.find(x=>x.key===s.diaKey);
+  if(!m || !d){
+    S.activa=null; save();
+    a.append(el('div',{class:'card'},
+      el('div',{style:'font-weight:700;margin-bottom:6px'},'Se descartó una sesión pendiente'),
+      el('div',{class:'muted'},'El mes o día de esa sesión ya no existe (probablemente se eliminó o restauró desde el Editor). Elige un día para empezar de nuevo.')));
+    return vEntrenar(a);
+  }
   a.append(el('div',{class:'card row'},
     el('div',{class:'sp'}, el('div',{style:'font-weight:800;font-size:17px'}, d.label+' · '+d.grupo),
       el('div',{class:'muted'}, m.nombre+' · '+fmtF(s.fecha))),
